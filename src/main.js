@@ -1,8 +1,3 @@
-// ==ClosureCompiler==
-// @compilation_level ADVANCED_OPTIMIZATIONS
-// @output_file_name default.js
-// ==/ClosureCompiler==
-
 var gl=document.querySelector("canvas").getContext("webgl");
 function makeShader(type,src) {
     var shader=gl.createShader(type);
@@ -14,12 +9,12 @@ function makeShader(type,src) {
 }
 
 // Shaders
-p = gl.createProgram();
-gl.attachShader(p,makeShader(gl.VERTEX_SHADER,"attribute vec4 p;varying vec2 q;void main(){gl_Position=p;q=p.xy;}"));
-gl.attachShader(p,makeShader(gl.FRAGMENT_SHADER,"precision mediump float;varying vec2 q;void main(){gl_FragColor = vec4(q.x,q.y,0,1);}"));
-gl.linkProgram(p);
-gl.useProgram(p);
-var attr=gl.getAttribLocation(p,"p");
+var program = gl.createProgram();
+gl.attachShader(program,makeShader(gl.VERTEX_SHADER,"attribute vec4 p;varying vec2 q;void main(){gl_Position=p;q=p.xy;}"));
+gl.attachShader(program,makeShader(gl.FRAGMENT_SHADER,"precision mediump float;varying vec2 q;void main(){gl_FragColor = vec4(q.x,q.y,0,1);}"));
+gl.linkProgram(program);
+gl.useProgram(program);
+var attr=gl.getAttribLocation(program,"p");
 
 // Screen Quad
 gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
