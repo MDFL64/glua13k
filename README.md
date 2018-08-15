@@ -11,8 +11,15 @@ A js13kGames entry.
 - Zip, then use ADVZIP.
 - Final Zip must be <= 13,312 bytes.
 ### JS
-- Run through closure compiler.
-- Further minifications: replace GL consts, function to arrow, dummy parameters, replace bools, etc?
+- Closure Compile:
+    * Inline GL consts
+    * Cut debug code
+- SMERT Minifications:
+    * Cut all newlines
+    * Search for library functions using short names **TODO**
+    * Cut top-level `var` **MAYBE**
+    * `function` to `=>` **MAYBE**
+
 ### GLSL
 - [Minify.](http://www.ctrl-alt-test.fr/glsl-minifier/)
 

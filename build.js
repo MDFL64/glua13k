@@ -1,5 +1,6 @@
 var child_process = require("child_process");
 var fs = require("fs");
+var util = require("util");
 
 function run(cmd) {
     var args = cmd.split(" ");
@@ -17,29 +18,91 @@ function getSize(file) {
     return fs.lstatSync(file).size;
 }
 
-function compare(a,b) {
-    var delta = (b - a);
+function compare(title,a,b) {
+    var str = (b || a) + "b";
+    if (b) {
+        var delta = (b - a);
 
-    var str = a + "b -> " + b + "b ( " + delta + "b / " + ((delta/a)*100).toFixed(2) + "% )";
-    return str;
+        str += " ( " + delta + "b / " + ((delta/a)*100).toFixed(2) + "% )";
+    }
+    title+=":";
+    while (title.length<20)
+        title+=" ";
+    console.log("\t"+title+str);
 }
 
-function runClosureCompiler(file) {
-    run("java -jar tools/closure-compiler.jar --js src/"+file+" --js_output_file build/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS");
-    console.log("ClosureCompiler( "+file+" ) :: "+compare(getSize("src/"+file),getSize("build/"+file)));
+var files = {};
+
+function stupidMinify(src) {
+    //src = src.replace(/35044/,"34962+82");
+    return src.replace(/\n/g,"");
 }
 
-function runAdvZip(files) {
-    var size=0;
-    files.forEach((file)=>{size+=getSize("build/"+file);});
+function processJs(file) {
+    console.log(">>> "+file);
+    var size = getSize("src/"+file);
+    compare("Start",size);
+    
+    var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs tools/externs.js --define DEBUG=false").stdout;
+    compare("ClosureCompiler",size,new_src.length);
+    size = new_src.length;
 
-    run("tools/advzip --add -4 build/entry.zip build/"+files.join(" build/"));
-    console.log("AdvZip( "+files.join(", ")+" ) :: "+compare(size,getSize("build/entry.zip")));
+    new_src = stupidMinify(new_src.toString())
+    compare("StupidMinify",size,new_src.length);
+
+    files[file] = new_src;
 }
 
-// Copy index.html
-fs.writeFileSync("build/index.html",fs.readFileSync("src/index.html"));
+function processShader(file) {
+    console.log(">>> "+file);
+    var size = getSize("src/"+file);
+    compare("Start",size);
+    
+    run("tools/shader_minifier.exe --format none --field-names rgba --preserve-externals src/"+file+" -o build/tmp").stdout;
+    var new_src = fs.readFileSync("build/tmp");
 
-runClosureCompiler("main.js");
+    compare("ShaderMinifier",size,new_src.length);
 
-runAdvZip(["index.html","main.js"]);
+    files[file] = new_src.toString();
+}
+
+function inline_r(file) {
+    var contents = files[file];
+    if (contents == null) {
+        console.log("ERROR! "+file+" not processed.");
+        process.exit();
+    }
+
+    return contents.replace(/INLINE\("([^"]*)"\)/g,function(_,inlined_file) {
+        if (file.endsWith(".js"))
+            return '"'+inline_r(inlined_file)+'"';
+        else
+            return inline_r(inlined_file);
+    });
+}
+
+function processFinal(file) {
+    files[file] = fs.readFileSync("src/"+file).toString();
+
+    console.log(">>> "+file);
+    var size = 0;
+    for (var k in files) {
+        size += files[k].length;
+    }
+    compare("Total",size);
+    
+    var new_src = inline_r(file);
+    compare("Inline",size,new_src.length);
+    fs.writeFileSync("build/"+file,new_src);
+    size = new_src.length;
+
+    run("tools/advzip --add -4 -i 100 build/entry.zip build/"+file);
+    compare("AdvZip",size,getSize("build/entry.zip"));
+}
+
+processShader("null.vert");
+processShader("march.frag");
+
+processJs("main.js");
+
+processFinal("index.html");
