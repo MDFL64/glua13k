@@ -9,7 +9,7 @@ var GL_STATIC_DRAW      = 0x88E4;
 var GL_FRAGMENT_SHADER  = 0x8B30;
 var GL_VERTEX_SHADER    = 0x8B31;
 
-var gl=document.querySelector("canvas").getContext("webgl");
+var gl = document.querySelector("canvas").getContext("webgl");
 
 function makeShader(type,src) {
     var shader=gl.createShader(type);

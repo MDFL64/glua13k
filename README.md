@@ -16,7 +16,6 @@ A js13kGames entry.
     * Cut debug code
 - SMERT Minifications:
     * Cut all newlines
-    * Search for library functions using short names **TODO**
     * Cut top-level `var` **MAYBE**
     * `function` to `=>` **MAYBE**
 

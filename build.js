@@ -33,8 +33,7 @@ function compare(title,a,b) {
 
 var files = {};
 
-function stupidMinify(src) {
-    //src = src.replace(/35044/,"34962+82");
+function SMERT(src) {
     return src.replace(/\n/g,"");
 }
 
@@ -43,12 +42,12 @@ function processJs(file) {
     var size = getSize("src/"+file);
     compare("Start",size);
     
-    var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs tools/externs.js --define DEBUG=false").stdout;
+    var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs externs.js --define DEBUG=false").stdout;
     compare("ClosureCompiler",size,new_src.length);
     size = new_src.length;
 
-    new_src = stupidMinify(new_src.toString())
-    compare("StupidMinify",size,new_src.length);
+    new_src = SMERT(new_src.toString())
+    compare("SMERT",size,new_src.length);
 
     files[file] = new_src;
 }
