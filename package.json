@@ -1,0 +1,22 @@
+{
+  "name": "glua13k",
+  "version": "1.0.0",
+  "description": "A js13kGames entry.",
+  "main": "build.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/birdbrainswagtrain/glua13k.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/birdbrainswagtrain/glua13k/issues"
+  },
+  "homepage": "https://github.com/birdbrainswagtrain/glua13k#readme",
+  "dependencies": {
+    "terser": "^3.8.1"
+  }
+}

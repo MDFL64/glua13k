@@ -12,7 +12,7 @@ var GL_VERTEX_SHADER    = 0x8B31;
 var canvas = document.querySelector("canvas");
 var gl = canvas.getContext("webgl");
 
-function makeShader(type,src) {
+var makeShader = (type,src)=>{
     var shader=gl.createShader(type);
     gl.shaderSource(shader,src);
     gl.compileShader(shader);
@@ -39,7 +39,7 @@ var loc = [0,0,-8];
 var ang = [0,0,0];
 
 // Input
-document.body.onkeypress = function(a) {
+document.body.onkeypress = (a)=>{
     if (a.key=="d")
         loc[0]+=.1;
     if (a.key=="a")
@@ -59,7 +59,7 @@ document.body.onkeypress = function(a) {
 };
 
 // Resize
-document.body.onresize = function() {
+document.body.onresize = ()=>{
     var w=document.body.clientWidth;
     var h=document.body.clientHeight;
     canvas.width = w;
@@ -70,11 +70,12 @@ document.body.onresize = function() {
 document.body.onresize();
 
 // Draw
-(function doFrame(t) {
+var doFrame = (t)=>{
     t/=1000;
     gl.uniform3fv(gl.getUniformLocation(program,"l"),loc);
     gl.uniform3fv(gl.getUniformLocation(program,"a"),ang); // .56
 
     gl.drawArrays(GL_TRIANGLE_STRIP,0,4);
     requestAnimationFrame(doFrame);
-})(0);
+};
+doFrame(0);

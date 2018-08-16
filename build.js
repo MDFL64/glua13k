@@ -1,6 +1,8 @@
 var child_process = require("child_process");
 var fs = require("fs");
 
+var terser = require("terser");
+
 var mode = process.argv[2];
 
 if (mode != "release" && mode != "debug") {
@@ -54,12 +56,16 @@ function processJs(file) {
     if (mode=="debug") {
         files[file] = "\n"+fs.readFileSync("src/"+file).toString();
     } else {
-        var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs externs.js --define DEBUG=false").stdout;
-        compare("ClosureCompiler",size,new_src.length);
+        //var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs externs.js --define DEBUG=false").stdout;
+        //compare("ClosureCompiler",size,new_src.length);
+        //size = new_src.length;
+        var res = terser.minify(fs.readFileSync("src/"+file).toString(),{toplevel: true,compress:{passes: 2,global_defs: {"DEBUG": false}}});
+        var new_src = res.code;
+        compare("Terser",size,new_src.length);
         size = new_src.length;
 
-        new_src = SMERT(new_src.toString())
-        compare("SMERT",size,new_src.length);
+        //new_src = SMERT(new_src.toString())
+        //compare("SMERT",size,new_src.length);
 
         files[file] = new_src;
     }
