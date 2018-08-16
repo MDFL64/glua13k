@@ -1,6 +1,15 @@
 var child_process = require("child_process");
 var fs = require("fs");
-var util = require("util");
+
+var mode = process.argv[2];
+
+if (mode != "release" && mode != "debug") {
+    console.log("No valid mode specified.");
+    process.exit();
+}
+
+if (!fs.existsSync("build"))
+    fs.mkdirSync("build");
 
 function run(cmd) {
     var args = cmd.split(" ");
@@ -42,27 +51,35 @@ function processJs(file) {
     var size = getSize("src/"+file);
     compare("Start",size);
     
-    var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs externs.js --define DEBUG=false").stdout;
-    compare("ClosureCompiler",size,new_src.length);
-    size = new_src.length;
+    if (mode=="debug") {
+        files[file] = "\n"+fs.readFileSync("src/"+file).toString();
+    } else {
+        var new_src = run("java -jar tools/closure-compiler.jar --js src/"+file+" --compilation_level ADVANCED_OPTIMIZATIONS --externs externs.js --define DEBUG=false").stdout;
+        compare("ClosureCompiler",size,new_src.length);
+        size = new_src.length;
 
-    new_src = SMERT(new_src.toString())
-    compare("SMERT",size,new_src.length);
+        new_src = SMERT(new_src.toString())
+        compare("SMERT",size,new_src.length);
 
-    files[file] = new_src;
+        files[file] = new_src;
+    }
 }
 
 function processShader(file) {
     console.log(">>> "+file);
     var size = getSize("src/"+file);
     compare("Start",size);
-    
-    run("tools/shader_minifier.exe --format none --field-names rgba --preserve-externals src/"+file+" -o build/tmp").stdout;
-    var new_src = fs.readFileSync("build/tmp");
 
-    compare("ShaderMinifier",size,new_src.length);
+    if (mode=="debug") {
+        files[file] = '`\n'+fs.readFileSync("src/"+file).toString()+'`';
+    } else {
+        run("tools/shader_minifier.exe --format none --field-names rgba --preserve-externals src/"+file+" -o build/tmp").stdout;
+        var new_src = fs.readFileSync("build/tmp");
 
-    files[file] = new_src.toString();
+        compare("ShaderMinifier",size,new_src.length);
+
+        files[file] = '"'+new_src.toString()+'"';
+    }
 }
 
 function inline_r(file) {
@@ -73,10 +90,7 @@ function inline_r(file) {
     }
 
     return contents.replace(/INLINE\("([^"]*)"\)/g,function(_,inlined_file) {
-        if (file.endsWith(".js"))
-            return '"'+inline_r(inlined_file)+'"';
-        else
-            return inline_r(inlined_file);
+        return inline_r(inlined_file);
     });
 }
 
@@ -92,11 +106,13 @@ function processFinal(file) {
     
     var new_src = inline_r(file);
     compare("Inline",size,new_src.length);
-    fs.writeFileSync("build/"+file,new_src);
+    fs.writeFileSync("build/"+(mode=="release" ? "index" : mode)+".html",new_src);
     size = new_src.length;
 
-    run("tools/advzip --add -4 -i 100 build/entry.zip build/"+file);
-    compare("AdvZip",size,getSize("build/entry.zip"));
+    if (mode == "release") {
+        run("tools/advzip --add -4 -i 1000 build/entry.zip build/index.html");
+        compare("AdvZip",size,getSize("build/entry.zip"));
+    }
 }
 
 processShader("null.vert");
