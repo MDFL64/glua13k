@@ -7,13 +7,14 @@ A js13kGames entry.
 - Basic physics re-use raymarcher's SDF.
 
 ## Build Process
-- Bundle into single HTML -or- keep split?
+- Recursively inline all files into index.html.
 - Zip, then use ADVZIP.
 - Final Zip must be <= 13,312 bytes.
 ### JS
-- Closure Compile:
+- Closure Compiler:
     * Inline GL consts
     * Cut debug code
+- TODO maybe just use an ES6 aware minifer?
 - SMERT Minifications:
     * Cut all newlines
     * Cut top-level `var` **MAYBE**
