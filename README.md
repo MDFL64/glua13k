@@ -8,7 +8,7 @@ A js13kGames entry.
 
 ## Build Process
 - Recursively inline all files into index.html.
-- Zip, then use ADVZIP.
+- Zip using ADVZIP.
 - Final Zip must be <= 13,312 bytes.
 ### JS
 - Closure Compiler:
