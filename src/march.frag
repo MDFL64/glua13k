@@ -58,6 +58,7 @@ vec3 sdf_normal(vec3 pos) {
 
 void main() {
 
+    // NOTE: my linal skills are absolute trash
     vec3 ray_dir = normalize(vec3(p.x,p.y*a.z,1))*
     mat3(
         1,0,0,
@@ -69,6 +70,7 @@ void main() {
         0,1,0,
         -sin(a.x),0,cos(a.x)
     );
+
     vec3 pos = l; // cam start pos
 
     for (int i=0;i<i_ITERS;i++) {
