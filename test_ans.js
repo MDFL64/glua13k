@@ -36,15 +36,28 @@ function get_preceding_bits(text,n) {
     return res;
 }
 
-function calc_p(counts_0,counts_1,ctx) {
-    return norm_f((counts_1[ctx]||1)/((counts_0[ctx]||1)+(counts_1[ctx]||1)));
+function calc_p(counts_0,counts_1,ctxs) {
+    ctxs=ctxs.filter( (ctx)=>(counts_1[ctx]!=null) );
+
+    if (!ctxs.length) {
+        return .5;
+    }
+
+    //console.log(">",ctxs);
+    var xs = ctxs.map( (ctx)=> {
+        //console.log("?",counts_1[ctx],counts_0[ctx]);
+        return norm_f( (counts_1[ctx]+1)/(counts_0[ctx]+counts_1[ctx]+2) )
+    });
+    //console.log("+",xs);
+
+    return norm_f(xs.reduce((a,b)=>a+b,0) / ctxs.length);
 }
 
-function update_counts(counts_0,counts_1,ctx,bit) {
-    if (bit)
-        counts_1[ctx]=(counts_1[ctx]||1)+1;
-    else
-        counts_0[ctx]=(counts_0[ctx]||1)+1;
+function update_counts(counts_0,counts_1,ctxs,bit) {
+    ctxs.forEach((ctx)=> {
+        counts_1[ctx]=(counts_1[ctx]||0)+bit;
+        counts_0[ctx]=(counts_0[ctx]||0)+!bit;
+    });
 }
 
 function model_p(input) {
@@ -54,17 +67,26 @@ function model_p(input) {
     var p_list = [];
 
     for (var i=0;i<input.length*8;i++) {
-        var ctx = get_preceding_bits(input,i);
+
+        var ctxs = [
+            get_preceding_bits(input,i),
+            input[((i/8)|0)-1]+"+"+get_preceding_bits(input,i),
+            input[((i/8)|0)-2]+input[((i/8)|0)-1]+"+"+get_preceding_bits(input,i),
+            input[((i/8)|0)-3]+input[((i/8)|0)-2]+input[((i/8)|0)-1]+"+"+get_preceding_bits(input,i),
+            input[((i/8)|0)-4]+input[((i/8)|0)-3]+input[((i/8)|0)-2]+input[((i/8)|0)-1]+"+"+get_preceding_bits(input,i),
+            input[((i/8)|0)-5]+input[((i/8)|0)-4]+input[((i/8)|0)-3]+input[((i/8)|0)-2]+input[((i/8)|0)-1]+"+"+get_preceding_bits(input,i)
+        ];
         
         // compute p
-        var p = calc_p(counts_0,counts_1,ctx);
+        var p = calc_p(counts_0,counts_1,ctxs);
         //console.log("ENCODE("+ctx+") "+p);
         
         p_list.push(p);
 
         // update counts
-        update_counts(counts_0,counts_1,ctx,get_bit(input,i));
+        update_counts(counts_0,counts_1,ctxs,get_bit(input,i));
     }
+    console.log(p_list)
 
     return p_list;
 }
@@ -115,24 +137,30 @@ function decode(input) {
     var counts_1 = {};
 
     while (x != START_X || input.length>0) {
-        var ctx = buffer;
+        var ctxs = [
+            buffer,
+            output[output.length-1]+"+"+buffer,
+            output[output.length-2]+output[output.length-1]+"+"+buffer,
+            output[output.length-3]+output[output.length-2]+output[output.length-1]+"+"+buffer,
+            output[output.length-4]+output[output.length-3]+output[output.length-2]+output[output.length-1]+"+"+buffer,
+            output[output.length-5]+output[output.length-4]+output[output.length-3]+output[output.length-2]+output[output.length-1]+"+"+buffer
+        ];
         
         // compute p
-        var p = calc_p(counts_0,counts_1,ctx);
-        //console.log("DECODE("+ctx+") "+p);
+        var p = calc_p(counts_0,counts_1,ctxs);
 
         var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
 
         buffer+=bit;
         if (buffer.length==8) {
-            //console.log(buffer);
+            //console.log(String.fromCharCode(parseInt(buffer,2)));
             output += String.fromCharCode(parseInt(buffer,2));
             buffer="";
         }
         x = bit ? Math.ceil(x*p) : (x - Math.ceil(x*p));
         
         // update counts
-        update_counts(counts_0,counts_1,ctx,bit);
+        update_counts(counts_0,counts_1,ctxs,bit);
 
         if (x<256) {
             x=x*256+input.pop();
