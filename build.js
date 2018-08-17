@@ -118,6 +118,8 @@ function processFinal(file) {
     if (mode == "release") {
         run("tools/advzip --add -4 -i 1000 build/entry.zip build/index.html");
         compare("AdvZip",size,getSize("build/entry.zip"));
+
+        run("tools/advzip --add -N -i 1000 build/xyzzy.zip build/index.html");
     }
 }
 
