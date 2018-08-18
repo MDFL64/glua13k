@@ -91,7 +91,7 @@ function model_p(input,ctx_settings,ctx_weights) {
 
     for (var i=0;i<input.length*8;i++) {
         if (i%8==0) {
-            var match = input.substr(0,(i/8)|0).match(/(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)$/)||[];
+            var match = input.substr(0,(i/8)|0).match(/(.|\w+)(.|\w+)(.|\w+)(.|\w+)$/)||[];
             continue;
         }
 
@@ -193,7 +193,7 @@ function encode(input,ctx_settings,ctx_weights) {
 }
 
 function decode(input,ctx_weights) {
-    var buffer = "";
+    var buffer = "0b";
     var output = "";
 
     //console.log(JSON.stringify(input));
@@ -204,25 +204,26 @@ function decode(input,ctx_weights) {
     var counts_0 = {};
     var counts_1 = {};
 
-    match = [];
+    var match = [];
     for (;;) {
         // The hope is that this sequence will compress good
         // I'm not really sure that's working out.
+        var n=0;
         var ctxs = [
-            "arrayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3]+output[output.length-4], // 43210
-            "rrayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3], // 3210
-            "rayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2], // 210
+            (n++)+buffer+"+"+output[output.length-n], // 10
+            (n++)+buffer+"+"+output[output.length-n], // 20
+            (n++)+buffer+"+"+output[output.length-n], // 30
+            (n++)+buffer+"+"+output[output.length-n], // 40
 
-            "ayBuffer"+buffer, // 0
+            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3]+output[output.length-4], // 43210
+            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3], // 3210
+            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2], // 210
 
-            "yBuffer"+buffer+"+"+output[output.length-1], // 10
-            "Buffer"+buffer+"+"+output[output.length-2], // 20
-            "uffer"+buffer+"+"+output[output.length-3], // 30
-            "ffer"+buffer+"+"+output[output.length-4], // 40
+            (n++)+buffer, // 0
 
-            "fer"+buffer+"+"+match[4], // a0
-            "er"+buffer+"+"+match[2], // c0
-            "r"+buffer+"+"+match[1]+match[3]  // db0
+            (n++)+buffer+"+"+match[4], // a0
+            (n++)+buffer+"+"+match[2], // c0
+            (n++)+buffer+"+"+match[1]+match[3]  // db0
         ];
         
         // compute p
@@ -246,28 +247,25 @@ function decode(input,ctx_weights) {
             p-=1/256;
         
         // get bit
+        //var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
         var bit = Math.ceil((x+1)*p) - Math.ceil(x*p); 
 
         buffer+=bit;
-        if (buffer.length==7) {
-            var char = String.fromCharCode(parseInt(buffer,2));
+        if (buffer.length==9) {
+            var char = String.fromCharCode(+buffer);
             output += char;
             if (char=="\n")
                 break;
-            buffer="";
-            match = output.match(/(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)$/)||[];
+            buffer="0b";
+            match = output.match(/(.|\w+)(.|\w+)(.|\w+)(.|\w+)$/)||[];
         }
-        x = bit ? Math.ceil(x*p) : (x - Math.ceil(x*p));
+        //x = bit ? Math.ceil(x*p) : (x - Math.ceil(x*p));
+        var [x,picked,other]= bit ? [Math.ceil(x*p),counts_1,counts_0] : [x - Math.ceil(x*p),counts_0,counts_1];
         
         // update counts
         ctxs.forEach((ctx)=>{
-            counts_1[ctx]=(counts_1[ctx]||bit*5)+bit;
-            counts_0[ctx]=(counts_0[ctx]||!bit*5)+!bit;
-            
-            var other= bit ? counts_0 : counts_1;
-
-            if (other[ctx]>5)
-                other[ctx]=(other[ctx]/2)|0;
+            picked[ctx]=(picked[ctx]||5)+1;
+            other[ctx]= other[ctx]>5 ? ((other[ctx]/2)|0) : (other[ctx]||0);
         });
 
         if (x<256) {
@@ -323,9 +321,9 @@ function do_test(input) {
     console.log("Input size:",input.length);
 
     var ctx_s = [
+        "01","02","03","04",
         "01234","0123","012",
         "0",
-        "01","02","03","04",
         "0a","0c","0bd"
         ];
     console.log("Try:",ctx_s);
@@ -371,7 +369,7 @@ function do_test(input) {
 
         var code = decode.toString()
             .replace(/[^{]*{/,`
-                fetch(".").then((x)=>x.arrayBuffer()).then((x)=>{
+                fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
                     var input = Array.from(new Uint8Array(x));
             `)
             .replace(/ctx_weights/,JSON.stringify(MODEL_WEIGHTS))
