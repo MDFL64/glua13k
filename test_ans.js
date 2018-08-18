@@ -1,4 +1,6 @@
 var fs = require("fs");
+var child_process = require("child_process");
+var terser = require("terser");
 
 var START_X = 256;
 
@@ -12,7 +14,7 @@ function norm_f(f) {
 
 function get_preceding_bits(text,n) {
     var res = "";
-    for (var i= n & 0xFFFFFFF8; i<n ; i++) {
+    for (var i= (n & 0xFFFFFFF8)+1; i<n ; i++) {
         res += get_bit(text,i);
     }
     return res;
@@ -84,11 +86,12 @@ function model_p(input,ctx_settings,ctx_weights) {
 
     var p_list = [];
 
-    var tokens = [];
-    var token_i=0;
+    //var tokens = [];
+    //var token_i=0;
 
     for (var i=0;i<input.length*8;i++) {
         if (i%8==0) {
+            var match = input.substr(0,(i/8)|0).match(/(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)$/)||[];
             continue;
         }
 
@@ -108,27 +111,18 @@ function model_p(input,ctx_settings,ctx_weights) {
             if (setting_str.indexOf("1")!=-1) {
                 ctx+=input[((i/8)|0)-1];
             }
-            
-            // token shitcode
-            var part = input.substr(0,(i/8)|0);
-            var match = part.match(/(.|[\w]+|[\d]+\.[\d]+)$/)||[];
-            if (match.index!=token_i) {
-                token_i=match.index;
-                tokens.push("");
-            }
-            tokens[tokens.length-1] = match[0];
-            
+            ///
             if (setting_str.indexOf("d")!=-1) {
-                ctx+=tokens[tokens.length-4];
+                ctx+=match[1];
             }
             if (setting_str.indexOf("c")!=-1) {
-                ctx+=tokens[tokens.length-3];
+                ctx+=match[2];
             }
             if (setting_str.indexOf("b")!=-1) {
-                ctx+=tokens[tokens.length-2];
+                ctx+=match[3];
             }
             if (setting_str.indexOf("a")!=-1) {
-                ctx+=tokens[tokens.length-1];
+                ctx+=match[4];
             }
 
             if (setting_str.indexOf("0")!=-1) {
@@ -136,8 +130,7 @@ function model_p(input,ctx_settings,ctx_weights) {
             }
             ctxs.push(ctx);
         }
-        //console.log(ctxs);
-        //console.log(ctxs);
+        //console.log("===>",match,ctxs);
         
         // compute p
         var [p,xs] = calc_p(counts_0,counts_1,ctxs,ctx_weights);
@@ -150,6 +143,8 @@ function model_p(input,ctx_settings,ctx_weights) {
         update_counts(counts_0,counts_1,ctxs,bit);
         if (dynamic)
             update_weights(ctx_weights,xs,bit,p);
+        
+        //console.log(">>>",i);
     }
     //console.log(ctx_weights);
     console.log("CONTEXT COUNT = ",Object.keys(counts_0).length);
@@ -193,12 +188,15 @@ function encode(input,ctx_settings,ctx_weights) {
     x>>=8;
     output.push(x&0xFF);
     x>>=8;
+
     return output;
 }
 
-function decode(input,ctx_settings,ctx_weights) {
+function decode(input,ctx_weights) {
     var buffer = "";
     var output = "";
+
+    //console.log(JSON.stringify(input));
 
     var x = input.pop();
     x=x*256+input.pop();
@@ -206,58 +204,80 @@ function decode(input,ctx_settings,ctx_weights) {
     var counts_0 = {};
     var counts_1 = {};
 
-    while (x != START_X || input.length>0) {
-        var ctxs = [];
-        for (var j=0;j<ctx_settings.length;j++) {
-            var ctx=String.fromCharCode(97+j);
-            var setting_str = ctx_settings[j];
-            if (setting_str.indexOf("0")!=-1) {
-                ctx+=buffer+"+";
-            }
-            if (setting_str.indexOf("1")!=-1) {
-                ctx+=output[output.length-1];
-            }
-            if (setting_str.indexOf("2")!=-1) {
-                ctx+=output[output.length-2];
-            }
-            if (setting_str.indexOf("3")!=-1) {
-                ctx+=output[output.length-3];
-            }
-            if (setting_str.indexOf("4")!=-1) {
-                ctx+=output[output.length-4];
-            }
-            if (setting_str.indexOf("5")!=-1) {
-                ctx+=output[output.length-5];
-            }
-            ctxs.push(ctx);
-        }
+    match = [];
+    for (;;) {
+        // The hope is that this sequence will compress good
+        // I'm not really sure that's working out.
+        var ctxs = [
+            "arrayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3]+output[output.length-4], // 43210
+            "rrayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3], // 3210
+            "rayBuffer"+buffer+"+"+output[output.length-1]+output[output.length-2], // 210
+
+            "ayBuffer"+buffer, // 0
+
+            "yBuffer"+buffer+"+"+output[output.length-1], // 10
+            "Buffer"+buffer+"+"+output[output.length-2], // 20
+            "uffer"+buffer+"+"+output[output.length-3], // 30
+            "ffer"+buffer+"+"+output[output.length-4], // 40
+
+            "fer"+buffer+"+"+match[4], // a0
+            "er"+buffer+"+"+match[2], // c0
+            "r"+buffer+"+"+match[1]+match[3]  // db0
+        ];
         
         // compute p
-        var [p,xs] = calc_p(counts_0,counts_1,ctxs,ctx_weights);
+        var p=0;
+        ctxs.forEach((ctx,i)=>{
+            if (counts_1[ctx]==null)
+                return;
+            var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
+            p+= Math.log(x/(1-x))*ctx_weights[i];
+        });
 
-        var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
+        p = ((256/(1+(Math.E**-p)))|0)/256;
+
+        //for no compression:
+        //p = Math.min(Math.max(p,1/256),255/256)
+
+        // Compresses better, probably!
+        if (!p)
+            p=1/256;
+        if (p==1)
+            p-=1/256;
+        
+        // get bit
+        var bit = Math.ceil((x+1)*p) - Math.ceil(x*p); 
 
         buffer+=bit;
         if (buffer.length==7) {
-            //console.log(String.fromCharCode(parseInt(buffer,2)));
-            output += String.fromCharCode(parseInt(buffer,2));
+            var char = String.fromCharCode(parseInt(buffer,2));
+            output += char;
+            if (char=="\n")
+                break;
             buffer="";
+            match = output.match(/(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)(.|[\w]+|[\d]+\.[\d]+)$/)||[];
         }
         x = bit ? Math.ceil(x*p) : (x - Math.ceil(x*p));
         
         // update counts
-        update_counts(counts_0,counts_1,ctxs,bit);
-        update_weights(ctx_weights,xs,bit,p);
+        ctxs.forEach((ctx)=>{
+            counts_1[ctx]=(counts_1[ctx]||bit*5)+bit;
+            counts_0[ctx]=(counts_0[ctx]||!bit*5)+!bit;
+            
+            var other= bit ? counts_0 : counts_1;
+
+            if (other[ctx]>5)
+                other[ctx]=(other[ctx]/2)|0;
+        });
 
         if (x<256) {
             x=x*256+input.pop();
         }
     }
-    //console.log("CONTEXT COUNT = ",Object.keys(counts_0).length);
     return output;
 }
 
-var input1 = fs.readFileSync("build/index.html").toString();
+var input1 = fs.readFileSync("build/index.html").toString()+"\n";
 
 /*for (var i=0;i<80;i++) {
     input += Math.random()>PROB ? 0 : 1;
@@ -303,9 +323,9 @@ function do_test(input) {
     console.log("Input size:",input.length);
 
     var ctx_s = [
+        "01234","0123","012",
         "0",
         "01","02","03","04",
-        "012","0123","01234",
         "0a","0c","0bd"
         ];
     console.log("Try:",ctx_s);
@@ -332,29 +352,60 @@ function do_test(input) {
     var x_len = x.length;
     console.log("FINAL==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
 
-    /*var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    //console.log(JSON.stringify(MODEL_WEIGHTS));
+    var output = decode(JSON.parse(JSON.stringify(x)),MODEL_WEIGHTS);
 
-    if (input!=output)
-        console.log("==========> BAD MATCH!!!");*/
+    if (input!=output) {
+        console.log("==========> BAD MATCH!!!");
+    } else {
+        //var fwd = ["\u0000","\u0001","\u0002","\u0003","\u0004","\u0005","\u0006","\u0007","\b","\t","\n","\u000b","\f","\r","\u000e","\u000f","\u0010","\u0011","\u0012","\u0013","\u0014","\u0015","\u0016","\u0017","\u0018","\u0019","\u001a","\u001b","\u001c","\u001d","\u001e","\u001f"," ","!","\"","#","$","%","&","'","(",")","*","+",",","-",".","/","0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?","@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","[","\\","]","^","_","`","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","{","|","}","~","","€","","‚","ƒ","„","…","†","‡","ˆ","‰","Š","‹","Œ","","Ž","","","‘","’","“","”","•","–","—","˜","™","š","›","œ","","ž","Ÿ"," ","¡","¢","£","¤","¥","¦","§","¨","©","ª","«","¬","­","®","¯","°","±","²","³","´","µ","¶","·","¸","¹","º","»","¼","½","¾","¿","À","Á","Â","Ã","Ä","Å","Æ","Ç","È","É","Ê","Ë","Ì","Í","Î","Ï","Ð","Ñ","Ò","Ó","Ô","Õ","Ö","×","Ø","Ù","Ú","Û","Ü","Ý","Þ","ß","à","á","â","ã","ä","å","æ","ç","è","é","ê","ë","ì","í","î","ï","ð","ñ","ò","ó","ô","õ","ö","÷","ø","ù","ú","û","ü","ý","þ","ÿ"];
+        /*var data = "";
+        for (var i=0;i<x.length;i++) {
+            data+=fwd[x[i]];
+        }
+        data = data
+            .replace(/\\/g,"\\\\")
+            .replace(/\"/g,"\\\"")
+            .replace(/\n/g,"\\n")
+            .replace(/\r/g,"\\r");*/
+
+        var code = decode.toString()
+            .replace(/[^{]*{/,`
+                fetch(".").then((x)=>x.arrayBuffer()).then((x)=>{
+                    var input = Array.from(new Uint8Array(x));
+            `)
+            .replace(/ctx_weights/,JSON.stringify(MODEL_WEIGHTS))
+            .replace("return output;","document.write(output);document.close();")
+            .replace(/}$/,"});");
+
+        code = terser.minify(code,{toplevel: true,compress:{passes: 2}}).code;
+
+        code = "<script>"+code+"</script>";
+        //console.log("****",x);
+        var final = Buffer.concat([
+            Buffer.from(code),
+            Buffer.from(x)
+        ]);
+        
+        
+        fs.writeFileSync("packed/index.html",final);
+    }
 }
 
 console.log(">>>>>>>>>>>>>>>>>>>>>>>>> FULL SOURCE");
 do_test(input1);
 
-/*console.log(">>>>>>>>>>>>>>>>>>>>>>>>> NO HTML");
-do_test(input2);
+function run(cmd) {
+    var args = cmd.split(" ");
+    cmd = args.shift();
+    var res = child_process.spawnSync(cmd,args);
+    if (res.status != 0) {
+        console.log("ERROR!");
+        console.log(res.stderr.toString());
+        process.exit();
+    }
+    return res;
+}
 
-console.log(">>>>>>>>>>>>>>>>>>>>>>>>> SHADERS ONLY");
-do_test(input3);
-
-console.log(">>>>>>>>>>>>>>>>>>>>>>>>> JS ONLY");
-do_test(input4);
-
-console.log("NOTE, HTML IS 144 BYTES");*/
-
-/*var output = decode(x);
-console.log("OUTPUT",output);
-
-console.log("MATCH",input==output);
-console.log("SIZE",input.length,x_len);
-*/
+run("tools/advzip --add -0 packed/0.zip packed/index.html");
+run("tools/advzip --add -4 -i 1000 packed/4.zip packed/index.html");

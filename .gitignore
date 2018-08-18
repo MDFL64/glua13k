@@ -4,3 +4,4 @@ build/
 tools/
 
 node_modules/
+packed/
