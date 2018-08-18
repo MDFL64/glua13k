@@ -1,22 +1,4 @@
-var test_data = "Buy it, use it, break it, fix it,";
-
-/*`
-Buy it, use it, break it, fix it,
-Trash it, change it, mail, upgrade it,
-Charge it, point it, zoom it, press it,
-Snap it, work it, quick, erase it,
-Write it, cut it, paste it, save it,
-Load it, check it, quick, rewrite it
-Plug it, play it, burn it, rip it,
-Drag and drop it, zip, unzip it,
-Lock it, fill it, curl it, find it,
-View it, code it, jam, unlock it
-`;*/
-
-
-var D = 256;
-
-var PROB = 10/D;
+var fs = require("fs");
 
 var START_X = 256;
 
@@ -50,18 +32,15 @@ function calc_p(counts_0,counts_1,ctxs,ctx_weights) {
         var p = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
         var x = stretch(p);
         xs.push(x);
-        total_v+=norm_f(x*ctx_weights[i]);
-        //console.log(p,x,total_v);
-
-        //var l = Math.abs(Math.log(p/(1-p)));
-        //total_v += p*l*ctx_weights[i];
-        //total_w += l*ctx_weights[i];
-    })
-
-    //if (!total_w)
-    //    return .5;
+        total_v+=(x*ctx_weights[i]); // norm_f?
+    });
 
     var p_final = norm_f(squash(total_v));
+
+    //for no compression:
+    //p_final = Math.min(Math.max(p_final,1/256),255/256)
+
+    // Compresses better, probably!
     if (!p_final)
         p_final=1/256;
     if (p_final==1)
@@ -74,10 +53,19 @@ function update_counts(counts_0,counts_1,ctxs,bit) {
     ctxs.forEach((ctx)=>{
         counts_1[ctx]=(counts_1[ctx]||bit*5)+bit;
         counts_0[ctx]=(counts_0[ctx]||!bit*5)+!bit;
+
+        if (bit) {
+            if (counts_0[ctx]>5)
+                counts_0[ctx]=(counts_0[ctx]/2)|0;
+        }
+        else {
+            if (counts_1[ctx]>5)
+                counts_1[ctx]=(counts_1[ctx]/2)|0;
+        }
     });
 }
 
-var LEARN_RATE = .01;
+var LEARN_RATE = .02;
 function update_weights(ctx_weights,xs,bit,p) {
     for (var i=0;i<xs.length;i++) {
         ctx_weights[i] = ctx_weights[i] + LEARN_RATE * xs[i] * (bit - p);
@@ -90,34 +78,59 @@ function model_p(input,ctx_settings,ctx_weights) {
 
     var p_list = [];
 
+    var tokens = [];
+    var token_i=0;
+
     for (var i=0;i<input.length*8;i++) {
-        if (i%8==0)
+        if (i%8==0) {
             continue;
+        }
 
         var ctxs = [];
         for (var j=0;j<ctx_settings.length;j++) {
             var ctx=String.fromCharCode(97+j);
             var setting_str = ctx_settings[j];
-            if (setting_str.indexOf("0")!=-1) {
-                ctx+=get_preceding_bits(input,i)+"+";
-            }
-            if (setting_str.indexOf("1")!=-1) {
-                ctx+=input[((i/8)|0)-1];
-            }
-            if (setting_str.indexOf("2")!=-1) {
-                ctx+=input[((i/8)|0)-2];
+            if (setting_str.indexOf("4")!=-1) {
+                ctx+=input[((i/8)|0)-4];
             }
             if (setting_str.indexOf("3")!=-1) {
                 ctx+=input[((i/8)|0)-3];
             }
-            if (setting_str.indexOf("4")!=-1) {
-                ctx+=input[((i/8)|0)-4];
+            if (setting_str.indexOf("2")!=-1) {
+                ctx+=input[((i/8)|0)-2];
             }
-            if (setting_str.indexOf("5")!=-1) {
-                ctx+=input[((i/8)|0)-5];
+            if (setting_str.indexOf("1")!=-1) {
+                ctx+=input[((i/8)|0)-1];
+            }
+            
+            // token shitcode
+            var part = input.substr(0,(i/8)|0);
+            var match = part.match(/(.|[\w]+|[\d]+\.[\d]+)$/)||[];
+            if (match.index!=token_i) {
+                token_i=match.index;
+                tokens.push("");
+            }
+            tokens[tokens.length-1] = match[0];
+            
+            if (setting_str.indexOf("d")!=-1) {
+                ctx+=tokens[tokens.length-4];
+            }
+            if (setting_str.indexOf("c")!=-1) {
+                ctx+=tokens[tokens.length-3];
+            }
+            if (setting_str.indexOf("b")!=-1) {
+                ctx+=tokens[tokens.length-2];
+            }
+            if (setting_str.indexOf("a")!=-1) {
+                ctx+=tokens[tokens.length-1];
+            }
+
+            if (setting_str.indexOf("0")!=-1) {
+                ctx+="+"+get_preceding_bits(input,i);
             }
             ctxs.push(ctx);
         }
+        //console.log(ctxs);
         //console.log(ctxs);
         
         // compute p
@@ -131,6 +144,7 @@ function model_p(input,ctx_settings,ctx_weights) {
         update_counts(counts_0,counts_1,ctxs,bit);
         update_weights(ctx_weights,xs,bit,p);
     }
+    console.log(ctx_weights);
 
     return p_list;
 }
@@ -164,7 +178,7 @@ function encode(input,ctx_settings,ctx_weights) {
             }
         }
     }
-    console.log(ctx_weights);
+    //console.log(ctx_weights);
     output.push(x&0xFF);
     x>>=8;
     output.push(x&0xFF);
@@ -183,15 +197,6 @@ function decode(input,ctx_settings,ctx_weights) {
     var counts_1 = {};
 
     while (x != START_X || input.length>0) {
-        var ctxs = [
-            buffer,
-            output[output.length-1]+"a"+buffer,
-            output[output.length-2]+output[output.length-1]+"b"+buffer,
-            output[output.length-3]+output[output.length-2]+output[output.length-1]+"c"+buffer,
-            output[output.length-4]+output[output.length-3]+output[output.length-2]+output[output.length-1]+"d"+buffer,
-            output[output.length-5]+output[output.length-4]+output[output.length-3]+output[output.length-2]+output[output.length-1]+"e"+buffer
-        ];
-
         var ctxs = [];
         for (var j=0;j<ctx_settings.length;j++) {
             var ctx=String.fromCharCode(97+j);
@@ -242,11 +247,7 @@ function decode(input,ctx_settings,ctx_weights) {
     return output;
 }
 
-var input1 = `<title>COLD STORAGE</title><meta charset="utf-8"><body style="overflow:hidden;margin:0"><canvas width=1280 height=720></canvas><script>var e=document.querySelector("canvas"),r=e.getContext("webgl"),t=(e,t)=>{var o=r.createShader(e);return r.shaderSource(o,t),r.compileShader(o),o},o=r.createProgram();r.attachShader(o,t(35633,"attribute vec4 v;varying vec2 p;void main(){p=(gl_Position=v).rg;}")),r.attachShader(o,t(35632,"precision mediump float;uniform vec3 a,l;varying vec2 p;float v(vec3 v,float s){return length(v)-s;}float n(vec3 v,vec3 s){return length(max(abs(v)-s,0.));}float s(float v,float s){return min(v,s);}float n(vec3 r){return s(v(r,1.),s(s(s(n(r-vec3(0,0,10),vec3(10,2,.1)),n(r-vec3(0,0,-10),vec3(10,2,.1))),s(n(r-vec3(10,0,0),vec3(.1,2,10)),n(r-vec3(-10,0,0),vec3(.1,2,10)))),s(n(r-vec3(0,2,0),vec3(10,.1,10)),n(r-vec3(0,-2,0),vec3(10,.1,10)))));}vec3 s(vec3 v){return normalize(vec3(n(v+vec3(.01,0,0))-n(v+vec3(-.01,0,0)),n(v+vec3(0,.01,0))-n(v+vec3(0,-.01,0)),n(v+vec3(0,0,.01))-n(v+vec3(0,0,-.01))));}void main(){vec3 v=normalize(vec3(p.r,p.g*a.b,1))*mat3(1,0,0,0,cos(a.g),-sin(a.g),0,sin(a.g),cos(a.g))*mat3(cos(a.r),0,sin(a.r),0,1,0,-sin(a.r),0,cos(a.r)),r=l;for(int f=0;f<128;f++){float m=n(r);if(m<.01){vec3 c=s(r);gl_FragColor=vec4(c.r*.5+.5,c.g*.5+.5,c.b*.5+.5,1);return;}r+=v*m;}gl_FragColor=vec4(.2,.2,.2,1);}")),r.linkProgram(o),r.useProgram(o),r.bindBuffer(34962,r.createBuffer()),r.bufferData(34962,new Float32Array([-1,1,1,1,-1,-1,1,-1]),35044),r.vertexAttribPointer(r.getAttribLocation(o,"v"),2,5126,!1,0,0),r.enableVertexAttribArray(r.getAttribLocation(o,"v"));var a=[0,0,-8],n=[0,0,0];document.body.onkeypress=(e=>{"d"==e.key&&(a[0]+=.1),"a"==e.key&&(a[0]-=.1),"w"==e.key&&(a[2]+=.1),"s"==e.key&&(a[2]-=.1),"ArrowLeft"==e.key&&(n[0]-=.1),"ArrowRight"==e.key&&(n[0]+=.1),"ArrowUp"==e.key&&(n[1]-=.1),"ArrowDown"==e.key&&(n[1]+=.1)}),document.body.onresize=(()=>{var t=document.body.clientWidth,o=document.body.clientHeight;e.width=t,e.height=o,r.viewport(0,0,t,o),n[2]=o/t}),document.body.onresize();var i=e=>{r.uniform3fv(r.getUniformLocation(o,"l"),a),r.uniform3fv(r.getUniformLocation(o,"a"),n),r.drawArrays(5,0,4),requestAnimationFrame(i)};i(0);</script>`;
-var input2 = `var e=document.querySelector("canvas"),r=e.getContext("webgl"),t=(e,t)=>{var o=r.createShader(e);return r.shaderSource(o,t),r.compileShader(o),o},o=r.createProgram();r.attachShader(o,t(35633,"attribute vec4 v;varying vec2 p;void main(){p=(gl_Position=v).rg;}")),r.attachShader(o,t(35632,"precision mediump float;uniform vec3 a,l;varying vec2 p;float v(vec3 v,float s){return length(v)-s;}float n(vec3 v,vec3 s){return length(max(abs(v)-s,0.));}float s(float v,float s){return min(v,s);}float n(vec3 r){return s(v(r,1.),s(s(s(n(r-vec3(0,0,10),vec3(10,2,.1)),n(r-vec3(0,0,-10),vec3(10,2,.1))),s(n(r-vec3(10,0,0),vec3(.1,2,10)),n(r-vec3(-10,0,0),vec3(.1,2,10)))),s(n(r-vec3(0,2,0),vec3(10,.1,10)),n(r-vec3(0,-2,0),vec3(10,.1,10)))));}vec3 s(vec3 v){return normalize(vec3(n(v+vec3(.01,0,0))-n(v+vec3(-.01,0,0)),n(v+vec3(0,.01,0))-n(v+vec3(0,-.01,0)),n(v+vec3(0,0,.01))-n(v+vec3(0,0,-.01))));}void main(){vec3 v=normalize(vec3(p.r,p.g*a.b,1))*mat3(1,0,0,0,cos(a.g),-sin(a.g),0,sin(a.g),cos(a.g))*mat3(cos(a.r),0,sin(a.r),0,1,0,-sin(a.r),0,cos(a.r)),r=l;for(int f=0;f<128;f++){float m=n(r);if(m<.01){vec3 c=s(r);gl_FragColor=vec4(c.r*.5+.5,c.g*.5+.5,c.b*.5+.5,1);return;}r+=v*m;}gl_FragColor=vec4(.2,.2,.2,1);}")),r.linkProgram(o),r.useProgram(o),r.bindBuffer(34962,r.createBuffer()),r.bufferData(34962,new Float32Array([-1,1,1,1,-1,-1,1,-1]),35044),r.vertexAttribPointer(r.getAttribLocation(o,"v"),2,5126,!1,0,0),r.enableVertexAttribArray(r.getAttribLocation(o,"v"));var a=[0,0,-8],n=[0,0,0];document.body.onkeypress=(e=>{"d"==e.key&&(a[0]+=.1),"a"==e.key&&(a[0]-=.1),"w"==e.key&&(a[2]+=.1),"s"==e.key&&(a[2]-=.1),"ArrowLeft"==e.key&&(n[0]-=.1),"ArrowRight"==e.key&&(n[0]+=.1),"ArrowUp"==e.key&&(n[1]-=.1),"ArrowDown"==e.key&&(n[1]+=.1)}),document.body.onresize=(()=>{var t=document.body.clientWidth,o=document.body.clientHeight;e.width=t,e.height=o,r.viewport(0,0,t,o),n[2]=o/t}),document.body.onresize();var i=e=>{r.uniform3fv(r.getUniformLocation(o,"l"),a),r.uniform3fv(r.getUniformLocation(o,"a"),n),r.drawArrays(5,0,4),requestAnimationFrame(i)};i(0);`
-var input3 = `attribute vec4 v;varying vec2 p;void main(){p=(gl_Position=v).rg;}
-precision mediump float;uniform vec3 a,l;varying vec2 p;float v(vec3 v,float s){return length(v)-s;}float n(vec3 v,vec3 s){return length(max(abs(v)-s,0.));}float s(float v,float s){return min(v,s);}float n(vec3 r){return s(v(r,1.),s(s(s(n(r-vec3(0,0,10),vec3(10,2,.1)),n(r-vec3(0,0,-10),vec3(10,2,.1))),s(n(r-vec3(10,0,0),vec3(.1,2,10)),n(r-vec3(-10,0,0),vec3(.1,2,10)))),s(n(r-vec3(0,2,0),vec3(10,.1,10)),n(r-vec3(0,-2,0),vec3(10,.1,10)))));}vec3 s(vec3 v){return normalize(vec3(n(v+vec3(.01,0,0))-n(v+vec3(-.01,0,0)),n(v+vec3(0,.01,0))-n(v+vec3(0,-.01,0)),n(v+vec3(0,0,.01))-n(v+vec3(0,0,-.01))));}void main(){vec3 v=normalize(vec3(p.r,p.g*a.b,1))*mat3(1,0,0,0,cos(a.g),-sin(a.g),0,sin(a.g),cos(a.g))*mat3(cos(a.r),0,sin(a.r),0,1,0,-sin(a.r),0,cos(a.r)),r=l;for(int f=0;f<128;f++){float m=n(r);if(m<.01){vec3 c=s(r);gl_FragColor=vec4(c.r*.5+.5,c.g*.5+.5,c.b*.5+.5,1);return;}r+=v*m;}gl_FragColor=vec4(.2,.2,.2,1);}`;
-var input4 = `var e=document.querySelector("canvas"),r=e.getContext("webgl"),t=(e,t)=>{var o=r.createShader(e);return r.shaderSource(o,t),r.compileShader(o),o},o=r.createProgram();r.attachShader(o,t(35633,s1)),r.attachShader(o,t(35632,s2)),r.linkProgram(o),r.useProgram(o),r.bindBuffer(34962,r.createBuffer()),r.bufferData(34962,new Float32Array([-1,1,1,1,-1,-1,1,-1]),35044),r.vertexAttribPointer(r.getAttribLocation(o,"v"),2,5126,!1,0,0),r.enableVertexAttribArray(r.getAttribLocation(o,"v"));var a=[0,0,-8],n=[0,0,0];document.body.onkeypress=(e=>{"d"==e.key&&(a[0]+=.1),"a"==e.key&&(a[0]-=.1),"w"==e.key&&(a[2]+=.1),"s"==e.key&&(a[2]-=.1),"ArrowLeft"==e.key&&(n[0]-=.1),"ArrowRight"==e.key&&(n[0]+=.1),"ArrowUp"==e.key&&(n[1]-=.1),"ArrowDown"==e.key&&(n[1]+=.1)}),document.body.onresize=(()=>{var t=document.body.clientWidth,o=document.body.clientHeight;e.width=t,e.height=o,r.viewport(0,0,t,o),n[2]=o/t}),document.body.onresize();var i=e=>{r.uniform3fv(r.getUniformLocation(o,"l"),a),r.uniform3fv(r.getUniformLocation(o,"a"),n),r.drawArrays(5,0,4),requestAnimationFrame(i)};i(0);`
+var input1 = fs.readFileSync("build/index.html").toString();
 
 /*for (var i=0;i<80;i++) {
     input += Math.random()>PROB ? 0 : 1;
@@ -291,14 +292,20 @@ console.log(results.sort());*/
 function do_test(input) {
     console.log("Input size:",input.length);
 
-    var ctx_s = ["01","02","012","0"];
+    var ctx_s = [
+        "0",
+        "01","02",
+        "012","0123","01234",
+        
+        "0a","0c","0bc"
+        ];
     console.log("Try:",ctx_s);
 
-    var x = encode(input,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    var x = encode(input,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
     var x_len = x.length;
     console.log("==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
 
-    var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
 
     if (input!=output)
         console.log("==========> BAD MATCH!!!");
