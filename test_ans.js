@@ -65,14 +65,20 @@ function update_counts(counts_0,counts_1,ctxs,bit) {
     });
 }
 
-var LEARN_RATE = .02;
+var LEARN_RATE;
 function update_weights(ctx_weights,xs,bit,p) {
     for (var i=0;i<xs.length;i++) {
         ctx_weights[i] = ctx_weights[i] + LEARN_RATE * xs[i] * (bit - p);
     }
 }
 
+
+var MODEL_WEIGHTS;
+
 function model_p(input,ctx_settings,ctx_weights) {
+    var dynamic = (ctx_weights==null);
+    ctx_weights = ctx_weights || MODEL_WEIGHTS;
+
     var counts_0 = {};
     var counts_1 = {};
 
@@ -142,9 +148,13 @@ function model_p(input,ctx_settings,ctx_weights) {
         // update counts
         var bit = get_bit(input,i);
         update_counts(counts_0,counts_1,ctxs,bit);
-        update_weights(ctx_weights,xs,bit,p);
+        if (dynamic)
+            update_weights(ctx_weights,xs,bit,p);
     }
-    console.log(ctx_weights);
+    //console.log(ctx_weights);
+    console.log("CONTEXT COUNT = ",Object.keys(counts_0).length);
+    if (dynamic)
+        MODEL_WEIGHTS = ctx_weights;
 
     return p_list;
 }
@@ -294,21 +304,38 @@ function do_test(input) {
 
     var ctx_s = [
         "0",
-        "01","02",
+        "01","02","03","04",
         "012","0123","01234",
-        
-        "0a","0c","0bc"
+        "0a","0c","0bd"
         ];
     console.log("Try:",ctx_s);
+    
+    MODEL_WEIGHTS = [];
+    for (var i=0;i<ctx_s.length;i++) {
+        MODEL_WEIGHTS[i]=1;
+    }
 
-    var x = encode(input,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    LEARN_RATE = .1;
+    
+    var TRAINING_PASSES = 10;
+    for (var i=1;i<=TRAINING_PASSES;i++) {
+        var x = encode(input,ctx_s);
+        var x_len = x.length;
+        console.log("PASS "+i+"==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
+        LEARN_RATE/=2;
+    }
+
+    MODEL_WEIGHTS = MODEL_WEIGHTS.map((x)=> +x.toFixed(2));
+    console.log(JSON.stringify(MODEL_WEIGHTS));
+
+    var x = encode(input,ctx_s,MODEL_WEIGHTS);
     var x_len = x.length;
-    console.log("==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
+    console.log("FINAL==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
 
-    var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
+    /*var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
 
     if (input!=output)
-        console.log("==========> BAD MATCH!!!");
+        console.log("==========> BAD MATCH!!!");*/
 }
 
 console.log(">>>>>>>>>>>>>>>>>>>>>>>>> FULL SOURCE");
