@@ -228,23 +228,15 @@ function decode(input,ctx_weights) {
         
         // compute p
         var p=0;
-        ctxs.forEach((ctx,i)=>{
-            if (counts_1[ctx]==null)
-                return;
+        ctxs.map((ctx,i)=>{
             var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
-            p+= Math.log(x/(1-x))*ctx_weights[i];
+            if (x==x)
+                p+= Math.log(x/(1-x))*ctx_weights[i];
         });
+        //console.log(p);
 
         p = ((256/(1+(Math.E**-p)))|0)/256;
-
-        //for no compression:
-        //p = Math.min(Math.max(p,1/256),255/256)
-
-        // Compresses better, probably!
-        if (!p)
-            p=1/256;
-        if (p==1)
-            p-=1/256;
+        p = (!p)?(1/256):((p==1)?(p-1/256):p); // clamp p
         
         // get bit
         //var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
@@ -254,7 +246,7 @@ function decode(input,ctx_weights) {
         if (buffer.length==9) {
             var char = String.fromCharCode(+buffer);
             output += char;
-            if (char=="\n")
+            if (!+buffer)
                 break;
             buffer="0b";
             match = output.match(/(.|\w+)(.|\w+)(.|\w+)(.|\w+)$/)||[];
@@ -263,7 +255,7 @@ function decode(input,ctx_weights) {
         var [x,picked,other]= bit ? [Math.ceil(x*p),counts_1,counts_0] : [x - Math.ceil(x*p),counts_0,counts_1];
         
         // update counts
-        ctxs.forEach((ctx)=>{
+        ctxs.map((ctx,i)=>{
             picked[ctx]=(picked[ctx]||5)+1;
             other[ctx]= other[ctx]>5 ? ((other[ctx]/2)|0) : (other[ctx]||0);
         });
@@ -275,7 +267,7 @@ function decode(input,ctx_weights) {
     return output;
 }
 
-var input1 = fs.readFileSync("build/index.html").toString()+"\n";
+var input1 = fs.readFileSync("build/index.html").toString()+"\x00";
 
 /*for (var i=0;i<80;i++) {
     input += Math.random()>PROB ? 0 : 1;
