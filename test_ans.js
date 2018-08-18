@@ -36,23 +36,38 @@ function get_preceding_bits(text,n) {
     return res;
 }
 
+var stretch = (p)=>Math.log(p/(1-p));
+var squash = (x)=> 1/( 1+Math.pow(Math.E,-x) );
 function calc_p(counts_0,counts_1,ctxs,ctx_weights) {
     var total_v=0;
-    var total_w=0;
-
+    var xs=[];
+    //console.log("==>");
     ctxs.forEach((ctx,i)=>{
-        if (counts_1[ctx]==null)
+        if (counts_1[ctx]==null) {
+            xs.push(0);
             return;
-        var p = (counts_1[ctx]+.5) / (counts_0[ctx]+counts_1[ctx]+1);
-        var l = Math.abs(Math.log(p/(1-p)));
-        total_v += p*l*ctx_weights[i];
-        total_w += l*ctx_weights[i];
+        }
+        var p = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
+        var x = stretch(p);
+        xs.push(x);
+        total_v+=norm_f(x*ctx_weights[i]);
+        //console.log(p,x,total_v);
+
+        //var l = Math.abs(Math.log(p/(1-p)));
+        //total_v += p*l*ctx_weights[i];
+        //total_w += l*ctx_weights[i];
     })
 
-    if (!total_w)
-        return .5;
+    //if (!total_w)
+    //    return .5;
 
-    return norm_f(total_v/total_w);
+    var p_final = norm_f(squash(total_v));
+    if (!p_final)
+        p_final=1/256;
+    if (p_final==1)
+        p_final=255/256;
+    //console.log(">>>>>",total_v,p_final,ctx_weights);
+    return [p_final,xs];
 }
 
 function update_counts(counts_0,counts_1,ctxs,bit) {
@@ -60,6 +75,13 @@ function update_counts(counts_0,counts_1,ctxs,bit) {
         counts_1[ctx]=(counts_1[ctx]||bit*5)+bit;
         counts_0[ctx]=(counts_0[ctx]||!bit*5)+!bit;
     });
+}
+
+var LEARN_RATE = .01;
+function update_weights(ctx_weights,xs,bit,p) {
+    for (var i=0;i<xs.length;i++) {
+        ctx_weights[i] = ctx_weights[i] + LEARN_RATE * xs[i] * (bit - p);
+    }
 }
 
 function model_p(input,ctx_settings,ctx_weights) {
@@ -99,13 +121,15 @@ function model_p(input,ctx_settings,ctx_weights) {
         //console.log(ctxs);
         
         // compute p
-        var p = calc_p(counts_0,counts_1,ctxs,ctx_weights);
+        var [p,xs] = calc_p(counts_0,counts_1,ctxs,ctx_weights);
         //console.log("ENCODE("+ctx+") "+p);
         
         p_list.push(p);
 
         // update counts
-        update_counts(counts_0,counts_1,ctxs,get_bit(input,i));
+        var bit = get_bit(input,i);
+        update_counts(counts_0,counts_1,ctxs,bit);
+        update_weights(ctx_weights,xs,bit,p);
     }
 
     return p_list;
@@ -140,7 +164,7 @@ function encode(input,ctx_settings,ctx_weights) {
             }
         }
     }
-
+    console.log(ctx_weights);
     output.push(x&0xFF);
     x>>=8;
     output.push(x&0xFF);
@@ -194,7 +218,7 @@ function decode(input,ctx_settings,ctx_weights) {
         }
         
         // compute p
-        var p = calc_p(counts_0,counts_1,ctxs,ctx_weights);
+        var [p,xs] = calc_p(counts_0,counts_1,ctxs,ctx_weights);
 
         var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
 
@@ -208,6 +232,7 @@ function decode(input,ctx_settings,ctx_weights) {
         
         // update counts
         update_counts(counts_0,counts_1,ctxs,bit);
+        update_weights(ctx_weights,xs,bit,p);
 
         if (x<256) {
             x=x*256+input.pop();
@@ -267,14 +292,13 @@ function do_test(input) {
     console.log("Input size:",input.length);
 
     var ctx_s = ["01","02","012","0"];
-    var ctx_w = [10,1,100,30,      2,1,1,1,1,1,1,1,1,1,1,1];
-    console.log("Try:",ctx_s,ctx_w);
+    console.log("Try:",ctx_s);
 
-    var x = encode(input,ctx_s,ctx_w);
+    var x = encode(input,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
     var x_len = x.length;
     console.log("==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
 
-    var output = decode(x,ctx_s,ctx_w);
+    var output = decode(x,ctx_s,[1,1,1,1,1,1,1,1,1,1,1,1,1,1]);
 
     if (input!=output)
         console.log("==========> BAD MATCH!!!");
