@@ -343,7 +343,7 @@ function do_test(input) {
         LEARN_RATE/=2;
     }
 
-    MODEL_WEIGHTS = MODEL_WEIGHTS.map((x)=> +x.toFixed(2));
+    MODEL_WEIGHTS = MODEL_WEIGHTS.map((x)=> norm_f(x));
     console.log(JSON.stringify(MODEL_WEIGHTS));
 
     var x = encode(input,ctx_s,MODEL_WEIGHTS);
@@ -372,7 +372,7 @@ function do_test(input) {
                 fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
                     var input = Array.from(new Uint8Array(x));
             `)
-            .replace(/ctx_weights/,JSON.stringify(MODEL_WEIGHTS))
+            .replace(/ctx_weights\[i\]/,"input[i]/256")
             .replace("return output;","document.write(output);document.close();")
             .replace(/}$/,"});");
 
@@ -381,6 +381,7 @@ function do_test(input) {
         code = "<script>"+code+"</script>";
         //console.log("****",x);
         var final = Buffer.concat([
+            Buffer.from(MODEL_WEIGHTS.map(x=>x*256)),
             Buffer.from(code),
             Buffer.from(x)
         ]);
