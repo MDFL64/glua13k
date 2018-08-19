@@ -23,10 +23,10 @@ function get_preceding_bits(text,n) {
 var stretch = (p)=>Math.log(p/(1-p));
 var squash = (x)=> 1/( 1+Math.pow(Math.E,-x) );
 function calc_p(counts_0,counts_1,ctxs,ctx_weights) {
-    var total_v=0;
+    //var total_v=0;
     var xs=[];
     //console.log("==>");
-    ctxs.forEach((ctx,i)=>{
+    /*ctxs.forEach((ctx,i)=>{
         if (counts_1[ctx]==null) {
             xs.push(0);
             return;
@@ -35,9 +35,20 @@ function calc_p(counts_0,counts_1,ctxs,ctx_weights) {
         var x = stretch(p);
         xs.push(x);
         total_v+=(x*ctx_weights[i]); // norm_f?
+    });*/
+
+    var p=0;
+    ctxs.map((ctx,i)=>{
+        var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
+        if (x==x) {
+            xs.push(x);
+            p+= Math.log(x/(1-x))*ctx_weights[i];
+        }
+        else
+            xs.push(0);
     });
 
-    var p_final = norm_f(squash(total_v));
+    var p_final = norm_f(squash(p));
 
     //for no compression:
     //p_final = Math.min(Math.max(p_final,1/256),255/256)
@@ -267,49 +278,7 @@ function decode(input,ctx_weights) {
     return output;
 }
 
-var input1 = fs.readFileSync("build/index.html").toString()+"\x00";
-
-/*for (var i=0;i<80;i++) {
-    input += Math.random()>PROB ? 0 : 1;
-}*/
-
-/*
-var options = 6;
-
-var results = [];
-for (var i=1;i<(1<<options);i++) {
-    var bits = i.toString(2);
-    while (bits.length<options)
-        bits="0"+bits;
-    
-    var s="";
-    for (var j=0;j<options;j++) {
-        if (bits[j]==1)
-            s+=j;
-    }
-
-    if (s.indexOf("0")==-1)
-        continue;
-    //console.log(bits,s);
-
-    var ctx_s = [s];
-    var ctx_w = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
-    //console.log("Try:",ctx_s,ctx_w);
-
-    var x = encode(input,ctx_s,ctx_w);
-    var x_len = x.length;
-    //console.log("==>",x_len);
-
-    var output = decode(x,ctx_s,ctx_w);
-
-    if (input!=output)
-        console.log("==========> "+s+" BAD MATCH!!!");
-    else
-        results.push(x_len+":"+s);
-}
-console.log(results.sort());*/
-
-function do_test(input) {
+function do_compress(input) {
     console.log("Input size:",input.length);
 
     var ctx_s = [
@@ -378,25 +347,12 @@ function do_test(input) {
             Buffer.from(x)
         ]);
         
-        
-        fs.writeFileSync("packed/index.html",final);
+        return final;
     }
 }
 
-console.log(">>>>>>>>>>>>>>>>>>>>>>>>> FULL SOURCE");
-do_test(input1);
+var input = fs.readFileSync(process.argv[2]).toString()+"\x00";
 
-function run(cmd) {
-    var args = cmd.split(" ");
-    cmd = args.shift();
-    var res = child_process.spawnSync(cmd,args);
-    if (res.status != 0) {
-        console.log("ERROR!");
-        console.log(res.stderr.toString());
-        process.exit();
-    }
-    return res;
-}
+var output = do_compress(input);
 
-run("tools/advzip --add -0 packed/0.zip packed/index.html");
-run("tools/advzip --add -4 -i 1000 packed/4.zip packed/index.html");
+fs.writeFileSync(process.argv[3],output);

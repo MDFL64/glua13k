@@ -112,12 +112,20 @@ function processFinal(file) {
     
     var new_src = inline_r(file);
     compare("Inline",size,new_src.length);
-    fs.writeFileSync("build/"+(mode=="release" ? "index" : mode)+".html",new_src);
+    fs.writeFileSync("build/"+mode+".html",new_src);
     size = new_src.length;
 
     if (mode == "release") {
-        run("tools/advzip --add -4 -i 1000 build/entry.zip build/index.html");
-        compare("AdvZip",size,getSize("build/entry.zip"));
+        console.log("\tOption 1:");
+        run("tools/advzip --add -4 -i 1000 build/minimal.zip build/"+mode+".html");
+        compare("\tAdvZip",size,getSize("build/minimal.zip"));
+
+        console.log("\tOption 2:");
+        run("node htpack.js build/"+mode+".html build/index.html")
+        compare("\tHTPack",size,getSize("build/index.html"));
+
+        run("tools/advzip --add -4 -i 1000 build/packed.zip build/index.html");
+        compare("\tAdvZip",getSize("build/index.html"),getSize("build/packed.zip"));
     }
 }
 
