@@ -10,6 +10,7 @@ var GL_FRAGMENT_SHADER  = 0x8B30;
 var GL_VERTEX_SHADER    = 0x8B31;
 
 var canvas = document.querySelector("canvas");
+
 var gl = canvas.getContext("webgl");
 
 var makeShader = (type,src)=>{
@@ -38,40 +39,59 @@ gl.enableVertexAttribArray(gl.getAttribLocation(program,"v"));
 var loc = [0,0,-8];
 var ang = [0,0,0];
 
-// Input
-document.body.onkeypress = (a)=>{
-    if (a.key=="d")
-        loc[0]+=.1;
-    if (a.key=="a")
-        loc[0]-=.1;
-    if (a.key=="w")
-        loc[2]+=.1;
-    if (a.key=="s")
-        loc[2]-=.1;
-    if (a.key=="ArrowLeft")
-        ang[0]-=.1;
-    if (a.key=="ArrowRight")
-        ang[0]+=.1;
-    if (a.key=="ArrowUp")
-        ang[1]-=.1;
-    if (a.key=="ArrowDown")
-        ang[1]+=.1;
-};
+var body = document.body;
+
+// Keyboard input.
+var keys = {};
+body.onkeydown = (event)=>keys[event.key]=true;
+body.onkeyup = (event)=>keys[event.key]=false;
+
 
 // Resize
-document.body.onresize = ()=>{
-    var w=document.body.clientWidth;
-    var h=document.body.clientHeight;
+body.onresize = ()=>{
+    var w=body.clientWidth;
+    var h=body.clientHeight;
     canvas.width = w;
     canvas.height = h;
     gl.viewport(0,0,w,h);
     ang[2] = h/w;
 }
-document.body.onresize();
+body.onresize();
 
+// Pointer lock
+canvas.onmousedown = ()=>{
+    canvas.requestPointerLock();
+}
+
+body.onmousemove = (event)=>{
+    if (document.pointerLockElement==canvas) {
+        ang[0]+=event.movementX/500;
+        ang[1]=Math.min(Math.max(-1.5,ang[1]+event.movementY/500),1.5);
+    }
+}
+
+var last_time=0;
 // Draw
-var doFrame = (t)=>{
-    t/=1000;
+var doFrame = (time)=>{
+    time/=1000;
+    var delta=time-last_time;
+    last_time = time;
+
+    // movement
+    var mx=0;
+    var my=0;
+    if (keys["d"])
+        mx+=1;
+    if (keys["a"])
+        mx-=1;
+    if (keys["w"])
+        my+=1;
+    if (keys["s"])
+        my-=1;
+    
+    loc[0]+=(mx*Math.cos(ang[0]) + my*Math.sin(ang[0])) * delta*10;
+    loc[2]-=(mx*Math.sin(ang[0]) - my*Math.cos(ang[0])) * delta*10;
+
     gl.uniform3fv(gl.getUniformLocation(program,"l"),loc);
     gl.uniform3fv(gl.getUniformLocation(program,"a"),ang); // .56
 

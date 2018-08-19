@@ -45,7 +45,7 @@ float sdf(vec3 pos) {
     );
 }
 
-const int i_ITERS = 128;
+const int i_ITERS = 256;
 const float i_EPSILON = .01;
 
 vec3 sdf_normal(vec3 pos) {
@@ -76,8 +76,14 @@ void main() {
     for (int i=0;i<i_ITERS;i++) {
         float d = sdf(pos);
         if (d<i_EPSILON) {
-            vec3 normal = sdf_normal(pos);
-            gl_FragColor = vec4(normal.r*.5+.5,normal.g*.5+.5,normal.b*.5+.5,1);
+            vec3 surface_normal = sdf_normal(pos);
+            vec3 surface_color = vec3(0.275, 0.510, 0.706);
+            
+            vec3 light_normal = normalize(vec3(1,3,2));
+
+            float light = dot(surface_normal,light_normal)*.5+.5;
+
+            gl_FragColor = vec4(light*surface_color,1);
             return;
         }
         pos += ray_dir*d;
