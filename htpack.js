@@ -237,17 +237,15 @@ function decode(input,ctx_weights) {
             (n++)+buffer+"+"+match[1]+match[3]  // db0
         ];
         
-        // compute p
         var p=0;
         ctxs.map((ctx,i)=>{
-            var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2);
+            var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2); // compute probability
             if (x==x)
-                p+= Math.log(x/(1-x))*ctx_weights[i];
+                p+= Math.log(x/(1-x))*ctx_weights[i]; // stretch + weight probability
         });
-        //console.log(p);
 
-        p = ((256/(1+(Math.E**-p)))|0)/256;
-        p = (!p)?(1/256):((p==1)?(p-1/256):p); // clamp p
+        p = ((256/(1+(Math.E**-p)))|0)/256;    // squash + normalize probability
+        p = (!p)?(1/256):((p==1)?(p-1/256):p); // clamp probability
         
         // get bit
         //var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
