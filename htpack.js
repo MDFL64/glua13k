@@ -166,6 +166,7 @@ function model_p(input,ctx_settings,ctx_weights) {
 }
 
 function encode(input,ctx_settings,ctx_weights) {
+    input+="\x00";
     var p_list = model_p(input,ctx_settings,ctx_weights);
 
     var x=START_X;
@@ -239,24 +240,22 @@ function decode(input,ctx_weights) {
         
         var p=0;
         ctxs.map((ctx,i)=>{
-            var x = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2); // compute probability
-            if (x==x)
-                p+= Math.log(x/(1-x))*ctx_weights[i]; // stretch + weight probability
+            ctx = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2); // compute probability
+            if (ctx==ctx)
+                p+= Math.log(ctx/(1-ctx))*ctx_weights[i]; // stretch + weight probability
         });
 
         p = ((256/(1+(Math.E**-p)))|0)/256;    // squash + normalize probability
         p = (!p)?(1/256):((p==1)?(p-1/256):p); // clamp probability
         
         // get bit
-        //var bit = Math.ceil((x+1)*p) - Math.ceil(x*p);
         var bit = Math.ceil((x+1)*p) - Math.ceil(x*p); 
 
         buffer+=bit;
-        if (buffer.length==9) {
-            var char = String.fromCharCode(+buffer);
-            output += char;
+        if (buffer.length>8) {
             if (!+buffer)
                 break;
+            output += String.fromCharCode(+buffer);
             buffer="0b";
             match = output.match(/(.|\w+)(.|\w+)(.|\w+)(.|\w+)$/)||[];
         }
@@ -276,7 +275,9 @@ function decode(input,ctx_weights) {
     return output;
 }
 
-function do_compress(input) {
+function do_compress(in_html) {
+    var input = in_html.match(/<script>(.*)<\/script>/)[1];
+
     console.log("Input size:",input.length);
 
     var ctx_s = [
@@ -333,24 +334,26 @@ function do_compress(input) {
             `)
             .replace(/var index = 0/,"var index = 11")
             .replace(/ctx_weights\[i\]/,"input[i]/256")
-            .replace("return output;","document.write(output);document.close();")
+            .replace("return output;","EVAL(output);")
             .replace(/}$/,"});");
 
         code = terser.minify(code,{toplevel: true,compress:{passes: 2}}).code;
+        code = code.replace(/var ?/g,"");
+        code = code.replace(/EVAL/,"eval");
 
-        code = "<script>"+code+"</script>";
+        var out_html = in_html.replace(/<script>(.*)<\/script>/,"<script>"+code+"</script>");
         //console.log("****",x);
         var final = Buffer.concat([
             Buffer.from(MODEL_WEIGHTS.map(x=>x*256)),
             Buffer.from(x),
-            Buffer.from(code)
+            Buffer.from(out_html)
         ]);
         
         return final;
     }
 }
 
-var input = fs.readFileSync(process.argv[2]).toString()+"\x00";
+var input = fs.readFileSync(process.argv[2]).toString();
 
 var output = do_compress(input);
 
