@@ -331,6 +331,7 @@ function do_compress(in_html) {
             .replace(/[^{]*{/,`
                 fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
                     var input = new Uint8Array(x);
+                    input.reverse();
             `)
             .replace(/var index = 0/,"var index = 11")
             .replace(/ctx_weights\[i\]/,"input[i]/256")
@@ -344,9 +345,9 @@ function do_compress(in_html) {
         var out_html = in_html.replace(/<script>(.*)<\/script>/,"<script>"+code+"</script>");
         //console.log("****",x);
         var final = Buffer.concat([
-            Buffer.from(MODEL_WEIGHTS.map(x=>x*256)),
-            Buffer.from(x),
-            Buffer.from(out_html)
+            Buffer.from(out_html),
+            Buffer.from(x.reverse()),
+            Buffer.from(MODEL_WEIGHTS.map(x=>x*256).reverse()),
         ]);
         
         return final;

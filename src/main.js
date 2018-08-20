@@ -14,10 +14,10 @@ var ply_pos = [0,0,-8];
 var ply_ang = [0,0,0];
 
 // Document fixing
-document.title="Satoshi's Tomb";
+//document.title="Satoshi's Tomb";
 var body = document.body;
-body.innerHTML="<canvas>";
-body.setAttribute("style","overflow:hidden;margin:0;");
+//body.innerHTML="<canvas>";
+//body.setAttribute("style","overflow:hidden;margin:0;");
 
 // Get canvas, webgl context
 var canvas = body.querySelector("canvas");
