@@ -205,6 +205,7 @@ function encode(input,ctx_settings,ctx_weights) {
 }
 
 function decode(input,ctx_weights) {
+
     var output = "";
     var buffer = "0b";
     var match = [];
@@ -244,7 +245,7 @@ function decode(input,ctx_weights) {
             if (ctx==ctx)
                 p-= Math.log(ctx/(1-ctx))*ctx_weights[i]; // stretch + weight probability
         });
-
+        
         p = ((256/(1+(Math.E**p)))|0);    // squash + normalize probability
         p = ((!p)?(1):((p==256)?(p-1):p))/256; // clamp probability
         
