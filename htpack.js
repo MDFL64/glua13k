@@ -200,7 +200,7 @@ function encode(input,ctx_settings,ctx_weights) {
     output.push(x&0xFF);
     x>>=8;
 
-    return output;
+    return output.reverse();
 }
 
 function decode(input,ctx_weights) {
@@ -208,9 +208,9 @@ function decode(input,ctx_weights) {
     var output = "";
 
     //console.log(JSON.stringify(input));
-
-    var x = input.pop();
-    x=x*256+input.pop();
+    var index = 0;
+    var x = input[index++];
+    x=x*256+input[index++];
 
     var counts_0 = {};
     var counts_1 = {};
@@ -270,7 +270,7 @@ function decode(input,ctx_weights) {
         });
 
         if (x<256) {
-            x=x*256+input.pop();
+            x=x*256+input[index++];
         }
     }
     return output;
@@ -329,8 +329,9 @@ function do_compress(input) {
         var code = decode.toString()
             .replace(/[^{]*{/,`
                 fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
-                    var input = Array.from(new Uint8Array(x));
+                    var input = new Uint8Array(x);
             `)
+            .replace(/var index = 0/,"var index = 11")
             .replace(/ctx_weights\[i\]/,"input[i]/256")
             .replace("return output;","document.write(output);document.close();")
             .replace(/}$/,"});");
@@ -341,8 +342,8 @@ function do_compress(input) {
         //console.log("****",x);
         var final = Buffer.concat([
             Buffer.from(MODEL_WEIGHTS.map(x=>x*256)),
-            Buffer.from(code),
-            Buffer.from(x)
+            Buffer.from(x),
+            Buffer.from(code)
         ]);
         
         return final;
