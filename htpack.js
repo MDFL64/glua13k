@@ -210,9 +210,9 @@ function decode(input,ctx_weights) {
     var match = [];
 
     //console.log(JSON.stringify(input));
-    var index = 0;
-    var x = input[input.length-1-index++];
-    x=x*256+input[input.length-1-index++];
+    var index = input.length-1;
+    var x = input[index--];
+    x=x*256+input[index--];
 
     var counts_0 = {};
     var counts_1 = {};
@@ -269,7 +269,7 @@ function decode(input,ctx_weights) {
         });
 
         if (x<256) {
-            x=x*256+input[input.length-1-index++];
+            x=x*256+input[index--];
         }
     }
     return output;
@@ -334,7 +334,7 @@ function do_compress(in_html) {
                 fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
                     var input = new Uint8Array(x);
             `)
-            .replace(/var index = 0/,"var index = 11")
+            .replace(/var index = input.length-1;/,"var index = input.length-12;")
             .replace(/ctx_weights\[i\]/,"input[input.length-1-i]/256")
             .replace("return output;","EVAL(output);")
             .replace(/}$/,"});");
