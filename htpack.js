@@ -211,8 +211,8 @@ function decode(input,ctx_weights) {
 
     //console.log(JSON.stringify(input));
     var index = 0;
-    var x = input[index++];
-    x=x*256+input[index++];
+    var x = input[input.length-1-index++];
+    x=x*256+input[input.length-1-index++];
 
     var counts_0 = {};
     var counts_1 = {};
@@ -269,7 +269,7 @@ function decode(input,ctx_weights) {
         });
 
         if (x<256) {
-            x=x*256+input[index++];
+            x=x*256+input[input.length-1-index++];
         }
     }
     return output;
@@ -310,11 +310,13 @@ function do_compress(in_html) {
     var x_len = x.length;
     console.log("FINAL==>", x_len,(x_len/input.length*100).toFixed(2)+"%" );
 
+    x.reverse();
     //console.log(JSON.stringify(MODEL_WEIGHTS));
-    var output = decode(JSON.parse(JSON.stringify(x)),MODEL_WEIGHTS);
+    var output = decode(x,MODEL_WEIGHTS);
 
     if (input!=output) {
         console.log("==========> BAD MATCH!!!");
+        console.log(output);
     } else {
         //var fwd = ["\u0000","\u0001","\u0002","\u0003","\u0004","\u0005","\u0006","\u0007","\b","\t","\n","\u000b","\f","\r","\u000e","\u000f","\u0010","\u0011","\u0012","\u0013","\u0014","\u0015","\u0016","\u0017","\u0018","\u0019","\u001a","\u001b","\u001c","\u001d","\u001e","\u001f"," ","!","\"","#","$","%","&","'","(",")","*","+",",","-",".","/","0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?","@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","[","\\","]","^","_","`","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","{","|","}","~","","€","","‚","ƒ","„","…","†","‡","ˆ","‰","Š","‹","Œ","","Ž","","","‘","’","“","”","•","–","—","˜","™","š","›","œ","","ž","Ÿ"," ","¡","¢","£","¤","¥","¦","§","¨","©","ª","«","¬","­","®","¯","°","±","²","³","´","µ","¶","·","¸","¹","º","»","¼","½","¾","¿","À","Á","Â","Ã","Ä","Å","Æ","Ç","È","É","Ê","Ë","Ì","Í","Î","Ï","Ð","Ñ","Ò","Ó","Ô","Õ","Ö","×","Ø","Ù","Ú","Û","Ü","Ý","Þ","ß","à","á","â","ã","ä","å","æ","ç","è","é","ê","ë","ì","í","î","ï","ð","ñ","ò","ó","ô","õ","ö","÷","ø","ù","ú","û","ü","ý","þ","ÿ"];
         /*var data = "";
@@ -331,10 +333,9 @@ function do_compress(in_html) {
             .replace(/[^{]*{/,`
                 fetch("").then((x)=>x.arrayBuffer()).then((x)=>{
                     var input = new Uint8Array(x);
-                    input.reverse();
             `)
             .replace(/var index = 0/,"var index = 11")
-            .replace(/ctx_weights\[i\]/,"input[i]/256")
+            .replace(/ctx_weights\[i\]/,"input[input.length-1-i]/256")
             .replace("return output;","EVAL(output);")
             .replace(/}$/,"});");
 
@@ -346,7 +347,7 @@ function do_compress(in_html) {
         //console.log("****",x);
         var final = Buffer.concat([
             Buffer.from(out_html),
-            Buffer.from(x.reverse()),
+            Buffer.from(x),
             Buffer.from(MODEL_WEIGHTS.map(x=>x*256).reverse()),
         ]);
         
