@@ -205,8 +205,9 @@ function encode(input,ctx_settings,ctx_weights) {
 }
 
 function decode(input,ctx_weights) {
-    var buffer = "0b";
     var output = "";
+    var buffer = "0b";
+    var match = [];
 
     //console.log(JSON.stringify(input));
     var index = 0;
@@ -216,7 +217,6 @@ function decode(input,ctx_weights) {
     var counts_0 = {};
     var counts_1 = {};
 
-    var match = [];
     for (;;) {
         // The hope is that this sequence will compress good
         // I'm not really sure that's working out.
@@ -242,11 +242,11 @@ function decode(input,ctx_weights) {
         ctxs.map((ctx,i)=>{
             ctx = (counts_1[ctx]+1) / (counts_0[ctx]+counts_1[ctx]+2); // compute probability
             if (ctx==ctx)
-                p+= Math.log(ctx/(1-ctx))*ctx_weights[i]; // stretch + weight probability
+                p-= Math.log(ctx/(1-ctx))*ctx_weights[i]; // stretch + weight probability
         });
 
-        p = ((256/(1+(Math.E**-p)))|0)/256;    // squash + normalize probability
-        p = (!p)?(1/256):((p==1)?(p-1/256):p); // clamp probability
+        p = ((256/(1+(Math.E**p)))|0);    // squash + normalize probability
+        p = ((!p)?(1):((p==256)?(p-1):p))/256; // clamp probability
         
         // get bit
         var bit = Math.ceil((x+1)*p) - Math.ceil(x*p); 
