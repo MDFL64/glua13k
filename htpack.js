@@ -223,20 +223,20 @@ function decode(input,ctx_weights) {
         // I'm not really sure that's working out.
         var n=0;
         var ctxs = [
-            (n++)+buffer+"+"+output[output.length-n], // 10
-            (n++)+buffer+"+"+output[output.length-n], // 20
-            (n++)+buffer+"+"+output[output.length-n], // 30
-            (n++)+buffer+"+"+output[output.length-n], // 40
+            (n++)+buffer+"0b"+output[output.length-n], // 10
+            (n++)+buffer+"0b"+output[output.length-n], // 20
+            (n++)+buffer+"0b"+output[output.length-n], // 30
+            (n++)+buffer+"0b"+output[output.length-n], // 40
 
-            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3]+output[output.length-4], // 43210
-            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2]+output[output.length-3], // 3210
-            (n++)+buffer+"+"+output[output.length-1]+output[output.length-2], // 210
+            (n++)+buffer+"0b"+output[output.length-1]+output[output.length-2]+output[output.length-3]+output[output.length-4], // 43210
+            (n++)+buffer+"0b"+output[output.length-1]+output[output.length-2]+output[output.length-3], // 3210
+            (n++)+buffer+"0b"+output[output.length-1]+output[output.length-2], // 210
 
             (n++)+buffer, // 0
 
-            (n++)+buffer+"+"+match[4], // a0
-            (n++)+buffer+"+"+match[2], // c0
-            (n++)+buffer+"+"+match[1]+match[3]  // db0
+            (n++)+buffer+"0b"+match[4], // a0
+            (n++)+buffer+"0b"+match[2], // c0
+            (n++)+buffer+"0b"+match[1]+match[3]  // db0
         ];
         
         var p=0;
@@ -277,7 +277,7 @@ function decode(input,ctx_weights) {
 }
 
 function do_compress(in_html) {
-    var input = in_html.match(/<script>(.*)<\/script>/)[1];
+    var input = in_html.match(/<script>(.*)<\/script>/s)[1];
 
     console.log("Input size:",input.length);
 
@@ -344,7 +344,7 @@ function do_compress(in_html) {
         code = code.replace(/var ?/g,"");
         code = code.replace(/EVAL/,"eval");
 
-        var out_html = in_html.replace(/<script>(.*)<\/script>/,"<script>"+code+"</script>");
+        var out_html = in_html.replace(/<script>(.*)<\/script>/s,"<script>"+code+"</script>");
         //console.log("****",x);
         var final = Buffer.concat([
             Buffer.from(out_html),
