@@ -63,18 +63,14 @@ function calc_p(counts_0,counts_1,ctxs,ctx_weights) {
 }
 
 function update_counts(counts_0,counts_1,ctxs,bit) {
-    ctxs.forEach((ctx)=>{
-        counts_1[ctx]=(counts_1[ctx]||bit*5)+bit;
-        counts_0[ctx]=(counts_0[ctx]||!bit*5)+!bit;
 
-        if (bit) {
-            if (counts_0[ctx]>5)
-                counts_0[ctx]=(counts_0[ctx]/2)|0;
-        }
-        else {
-            if (counts_1[ctx]>5)
-                counts_1[ctx]=(counts_1[ctx]/2)|0;
-        }
+    //x = bit ? Math.ceil(x*p) : (x - Math.ceil(x*p));
+    var [picked,other]= bit ? [counts_1,counts_0] : [counts_0,counts_1];
+
+    // update counts
+    ctxs.map((ctx,i)=>{
+        picked[ctx]=(picked[ctx]||5)+1;
+        other[ctx]= other[ctx]>5 ? ((other[ctx]/2)|0) : (other[ctx]||0);
     });
 }
 
@@ -266,7 +262,7 @@ function decode(input,ctx_weights) {
         // update counts
         ctxs.map((ctx,i)=>{
             picked[ctx]=(picked[ctx]||5)+1;
-            other[ctx]= other[ctx]>5 ? ((other[ctx]/2)|0) : (other[ctx]||0);
+            other[ctx]= other[ctx]>5 ? (other[ctx]>>1) : (other[ctx]||0);
         });
 
         if (x<256) {
