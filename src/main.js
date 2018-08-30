@@ -10,7 +10,7 @@ var GL_FRAGMENT_SHADER  = 0x8B30;
 var GL_VERTEX_SHADER    = 0x8B31;
 
 // Player info
-var ply_pos = [0,0,-8];
+var ply_pos = [0,0,-50];
 var ply_ang = [0,0,0];
 
 
@@ -18,7 +18,7 @@ var body = document.body;
 
 // Get canvas, webgl context
 var canvas = body.querySelector("canvas");
-var gl = canvas.getContext("webgl");
+var gl = canvas.getContext("webgl2");
 
 // Resize
 body.onresize = ()=>{

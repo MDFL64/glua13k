@@ -1,0 +1,1 @@
+nodemon -e html,js,vert,frag --ignore build build.js debug

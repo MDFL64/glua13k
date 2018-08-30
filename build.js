@@ -19,6 +19,7 @@ function run(cmd) {
     var res = child_process.spawnSync(cmd,args);
     if (res.status != 0) {
         console.log("ERROR!");
+        console.log(res.stdout.toString());
         console.log(res.stderr.toString());
         process.exit();
     }
@@ -77,14 +78,14 @@ function processShader(file) {
     compare("Start",size);
 
     if (mode=="debug") {
-        files[file] = '`\n'+fs.readFileSync("src/"+file).toString()+'`';
+        files[file] = '`'+fs.readFileSync("src/"+file).toString()+'`';
     } else {
         run("tools/shader_minifier.exe --format none --field-names rgba --preserve-externals src/"+file+" -o build/tmp").stdout;
         var new_src = fs.readFileSync("build/tmp");
 
         compare("ShaderMinifier",size,new_src.length);
 
-        files[file] = '"'+new_src.toString()+'"';
+        files[file] = '`'+new_src.toString()+'`';
     }
 }
 

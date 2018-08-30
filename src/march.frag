@@ -1,3 +1,4 @@
+#version 300 es
 //[
 precision mediump float;
 //]
@@ -5,54 +6,76 @@ precision mediump float;
 uniform vec3 a; // view angle (x=yaw,y=pitch,z=aspect)
 uniform vec3 l; // view location
 
-varying vec2 p; // input pos
+in vec2 p; // input pos
+out vec4 c; // out coor
 
-float sd_sphere(vec3 pos, float r) {
-    return length(pos)-r;
+// SDF result
+struct sr {
+    float d;
+    int m;
+};
+
+sr sd_sphere(vec3 pos, float r, int mat) {
+    return sr(length(pos)-r,mat);
 }
 
-float sd_box(vec3 pos, vec3 bounds) {
-    return length(max(abs(pos)-bounds,0.0));
+sr sd_box(vec3 pos, vec3 bounds, int mat) {
+    vec3 d = abs(pos) - bounds;
+    return sr(min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0)),mat);
+    //return sr(length(max(abs(pos)-bounds,0.0)),mat);
 }
 
-float sd_join(float a, float b) {
-    return min(a,b);
+sr sd_join(sr a, sr b) {
+    if (a.d<b.d)
+        return a;
+    return b;
 }
 
-/*float sd_offset(float a, vec3 offset) {
+sr sd_cut(sr a, sr b) {
+    if (a.d<-b.d)
+        return sr(-b.d,b.m);
+    return a;
+}
+
+sr sd_ground(vec3 pos, int mat) {
+    return sr(pos.y + 5.0,mat);
+}
+
+vec3 sd_repeat(vec3 pos, vec3 rep) {
+    return mod(pos,rep) - .5*rep;
+}
+
+sr sdf(vec3 pos) {
+
+    vec3 rep_pos = sd_repeat(pos,vec3(100,100,100));
+
     return 
-}*/
-
-float sdf(vec3 pos) {
-    return sd_join(
-        sd_sphere(pos,1.0),
+    //sd_join(
         sd_join(
-            sd_join( // Walls
-                sd_join(
-                    sd_box(pos-vec3(0,0,10),vec3(10,2,.1)),
-                    sd_box(pos-vec3(0,0,-10),vec3(10,2,.1))
-                ),
-                sd_join(
-                    sd_box(pos-vec3(10,0,0),vec3(.1,2,10)),
-                    sd_box(pos-vec3(-10,0,0),vec3(.1,2,10))
-                )
-            ),
-            sd_join( // Floor + Ceiling
-                sd_box(pos-vec3(0,2,0),vec3(10,.1,10)),
-                sd_box(pos-vec3(0,-2,0),vec3(10,.1,10))
-            )
-        )
-    );
+            sd_box(rep_pos,vec3(40,1,40),1),
+            sd_box(rep_pos,vec3(30,10,30),2)
+        );//,
+    //    sd_ground(pos,1)
+    //);
+}
+
+vec3 sample_material(int mat_id, vec3 pos) {
+    if (mat_id==1) // PAVEMENT
+        return vec3(.3, .3, .3);
+    else if (mat_id==2) // CAVE WALLS
+        return vec3(1, 0.271, 0.075)*(.75+sin((pos.x+pos.y+pos.z)*1.0)*.25);
+    else
+        return vec3(1,0,1);
 }
 
 const int i_ITERS = 256;
-const float i_EPSILON = .01;
+const float i_EPSILON = .001;
 
 vec3 sdf_normal(vec3 pos) {
     return normalize(vec3(
-        sdf(pos+vec3(i_EPSILON,0,0)) - sdf(pos+vec3(-i_EPSILON,0,0)),
-        sdf(pos+vec3(0,i_EPSILON,0)) - sdf(pos+vec3(0,-i_EPSILON,0)),
-        sdf(pos+vec3(0,0,i_EPSILON)) - sdf(pos+vec3(0,0,-i_EPSILON))
+        sdf(pos+vec3(i_EPSILON,0,0)).d - sdf(pos+vec3(-i_EPSILON,0,0)).d,
+        sdf(pos+vec3(0,i_EPSILON,0)).d - sdf(pos+vec3(0,-i_EPSILON,0)).d,
+        sdf(pos+vec3(0,0,i_EPSILON)).d - sdf(pos+vec3(0,0,-i_EPSILON)).d
     ));
 }
 
@@ -74,19 +97,19 @@ void main() {
     vec3 pos = l; // cam start pos
 
     for (int i=0;i<i_ITERS;i++) {
-        float d = sdf(pos);
-        if (d<i_EPSILON) {
+        sr res = sdf(pos);
+        if (res.d<i_EPSILON) {
             vec3 surface_normal = sdf_normal(pos);
-            vec3 surface_color = vec3(0.275, 0.510, 0.706);
+            vec3 surface_color = sample_material(res.m,pos);
             
             vec3 light_normal = normalize(vec3(1,3,2));
 
             float light = dot(surface_normal,light_normal)*.5+.5;
 
-            gl_FragColor = vec4(light*surface_color,1);
+            c = vec4(light*surface_color,1);
             return;
         }
-        pos += ray_dir*d;
+        pos += ray_dir*res.d;
     }
-    gl_FragColor = vec4(.2,.2,.2,1);
+    c = vec4(.2,.2,.2,1);
 }
