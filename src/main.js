@@ -10,7 +10,7 @@ var GL_FRAGMENT_SHADER  = 0x8B30;
 var GL_VERTEX_SHADER    = 0x8B31;
 
 // Player info
-var ply_pos = [0,0,-50];
+var ply_pos = [0,1,-50];
 var ply_ang = [0,0,0];
 
 

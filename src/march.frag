@@ -38,37 +38,39 @@ sr sd_cut(sr a, sr b) {
 }
 
 sr sd_ground(vec3 pos, int mat) {
-    return sr(pos.y + 5.0,mat);
+    return sr(pos.y + 1.0,mat);
 }
 
 vec3 sd_repeat(vec3 pos, vec3 rep) {
-    return mod(pos,rep) - .5*rep;
+    return vec3(mod(pos.x,rep.x),pos.y,mod(pos.z,rep.z)) - .5*rep;
 }
 
 sr sdf(vec3 pos) {
 
-    vec3 rep_pos = sd_repeat(pos,vec3(100,100,100));
+    vec3 rep_pos = sd_repeat(pos-vec3(0,20,0),vec3(100,0,100));
 
     return 
-    //sd_join(
-        sd_join(
-            sd_box(rep_pos,vec3(40,1,40),1),
-            sd_box(rep_pos,vec3(30,10,30),2)
-        );//,
-    //    sd_ground(pos,1)
-    //);
+    sd_join(
+        sd_box(rep_pos,vec3(30,200,30),2),
+        sd_ground(pos,1)
+    );
 }
 
 vec3 sample_material(int mat_id, vec3 pos) {
-    if (mat_id==1) // PAVEMENT
-        return vec3(.3, .3, .3);
-    else if (mat_id==2) // CAVE WALLS
-        return vec3(1, 0.271, 0.075)*(.75+sin((pos.x+pos.y+pos.z)*1.0)*.25);
-    else
+    if (mat_id==1)
+        // PAVEMENT
+        return vec3(.2, .2, .2);
+    else if (mat_id==2) {
+        // BUILDING SIDES
+        vec3 x = mod(pos,vec3(2,2,2));
+        if (abs(x.x-1.0)<.05 || abs(x.y-1.0)<.05 || abs(x.z-1.0)<.05)
+            return vec3(.2,.2,.2);
+        return vec3(.1,.1,.1);
+    } else
         return vec3(1,0,1);
 }
 
-const int i_ITERS = 256;
+const int i_ITERS = 1024;
 const float i_EPSILON = .001;
 
 vec3 sdf_normal(vec3 pos) {
